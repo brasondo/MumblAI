@@ -37,3 +37,5 @@ class AudioTranscriber:
         if len(seg.get("text", "").strip()) < 5:
             return "MUMBLE"
         return "CLEAR"
+    
+    # Comment for github streak lmaooo
