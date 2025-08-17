@@ -1,0 +1,7 @@
+whisper
+sounddevice
+soundfile
+numpy
+fuzzywuzzy[speedup]
+faster-whisper==1.*
+requests
