@@ -315,6 +315,42 @@ class VoiceDock(QtWidgets.QFrame):
         self.status.setText("Listening…" if on else "Tap to speak")
 
 
+class ColorKey(QtWidgets.QFrame):
+    """Tiny legend for chip colors: Clear / Uncertain / Mumble."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("ColorKey")
+        self.setStyleSheet("""
+            #ColorKey {
+                background: rgba(255,255,255,0.04);
+                border: 1px solid rgba(255,255,255,0.06);
+                border-radius: 10px;
+            }
+            QLabel { color: #C2C7D0; font-size: 12px; }
+        """)
+        lay = QtWidgets.QHBoxLayout(self)
+        lay.setContentsMargins(8, 6, 8, 6)
+        lay.setSpacing(12)
+
+        def pill(color_hex: str, text: str) -> QtWidgets.QWidget:
+            w = QtWidgets.QWidget()
+            row = QtWidgets.QHBoxLayout(w)
+            row.setContentsMargins(0,0,0,0)
+            row.setSpacing(6)
+            dot = QtWidgets.QLabel()
+            dot.setFixedSize(10, 10)
+            dot.setStyleSheet(f"background:{color_hex}; border-radius:5px;")
+            label = QtWidgets.QLabel(text)
+            row.addWidget(dot)
+            row.addWidget(label)
+            return w
+
+        # Match TranscriptView chip colors
+        lay.addWidget(pill("#3FB950", "Clear"))
+        lay.addWidget(pill("#FFD666", "Uncertain"))
+        lay.addWidget(pill("#FF6159", "Mumble"))
+
+
 class TranscriptView(QtWidgets.QTextBrowser):
     """
     Transcript view with colored chips.
@@ -335,19 +371,35 @@ class TranscriptView(QtWidgets.QTextBrowser):
         self.setStyleSheet("QTextBrowser{background:transparent;border:none}")
         self._html = "<body></body>"
 
+        # append_word can track state
+        self._first = True
+        self._prev_was_punct = False
+
     @QtCore.Slot(str, str)
     def append_word(self, text: str, label: str):
         cls = "clear" if label == "CLEAR" else "uncertain" if label == "UNCERTAIN" else "mumble"
         safe = (text or "").replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
-        snippet = f'<span class="chip {cls}">{safe}</span>'
+
+        # detect punctuation
+        is_punct = (len(safe) == 1 and safe in ".,?!:;")
+        spacer = "" if (self._first or is_punct or self._prev_was_punct) else " "
+
+        snippet = f'{spacer}<span class="chip {cls}">{safe}</span>'
         self._html = self._html[:-7] + snippet + "</body>"
         self.setHtml(self._html)
         self.verticalScrollBar().setValue(self.verticalScrollBar().maximum())
+
+        # update state
+        self._first = False
+        self._prev_was_punct = is_punct
 
     @QtCore.Slot()
     def reset(self):
         self._html = "<body></body>"
         self.setHtml(self._html)
+        # reset spacing state too
+        self._first = True
+        self._prev_was_punct = False
 
 
 class Background(QtWidgets.QWidget):
@@ -535,9 +587,16 @@ class MainWindow(QtWidgets.QWidget):
         title_box.addWidget(title); title_box.addWidget(self.sub)
         header.addWidget(avatar); header.addLayout(title_box); header.addStretch()
 
+        # legend (color key)
+        legend = ColorKey()
+        header.addWidget(legend)
+
+        # status dot
         self.dot = QtWidgets.QLabel(); self.dot.setFixedSize(10,10)
         self.dot.setStyleSheet("border-radius:5px; background:#3fb950")
+        header.addSpacing(8)
         header.addWidget(self.dot)
+
         card_l.addLayout(header)
 
         # transcript area
